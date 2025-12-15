@@ -1,0 +1,1400 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Pocket Tycoon – Idle Decisions (Portfolio + Real Estate)</title>
+  <style>
+    :root{
+      --bg:#070a10; --panel:rgba(255,255,255,.06); --line:rgba(255,255,255,.12);
+      --text:#eaf2ff; --muted:rgba(234,242,255,.75);
+      --accent:#2f7cff; --accent2:#6a5cff; --danger:#ff3b3b; --good:#33d17a;
+    }
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;overflow:hidden}
+    canvas{position:fixed;inset:0;width:100vw;height:100vh;z-index:0}
+    .app{position:fixed;inset:0;z-index:1;display:flex;flex-direction:column}
+    .topbar{
+      display:flex;gap:10px;align-items:center;justify-content:space-between;
+      padding:12px 12px 10px;border-bottom:1px solid var(--line);
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      backdrop-filter: blur(8px);
+    }
+    .pill{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);
+      border-radius:999px;background:var(--panel)}
+    .kpi{display:flex;flex-direction:column;line-height:1.1}
+    .kpi b{font-size:14px}
+    .kpi span{font-size:12px;color:var(--muted)}
+    .tabs{display:flex;gap:8px; padding:10px 12px; flex-wrap:wrap}
+    .tab{border:1px solid var(--line); background:var(--panel); color:var(--text);
+      padding:8px 10px; border-radius:12px; font-weight:800; font-size:13px}
+    .tab.active{background:linear-gradient(135deg, rgba(47,124,255,.25), rgba(106,92,255,.18));
+      border-color:rgba(47,124,255,.35)}
+    .content{flex:1; overflow:auto; padding:0 12px 14px}
+    .card{border:1px solid var(--line); background:var(--panel); border-radius:16px; padding:12px; margin:10px 0}
+    .row{display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap}
+    .muted{color:var(--muted); font-size:12px}
+    .big{font-size:18px;font-weight:900}
+    .btn{
+      border:0; border-radius:12px; padding:10px 12px; font-weight:900;
+      background:linear-gradient(135deg,var(--accent),var(--accent2)); color:white;
+    }
+    .btn.ghost{background:transparent;border:1px solid var(--line); color:var(--text)}
+    .btn.danger{background:linear-gradient(135deg,#ff3b3b,#ff7a3b)}
+    .btn.good{background:linear-gradient(135deg,#33d17a,#2f7cff)}
+    .btn:disabled{opacity:.45}
+    .list{display:flex;flex-direction:column;gap:10px}
+    .item{border:1px solid var(--line);border-radius:14px;padding:12px;background:rgba(0,0,0,.12)}
+    .item h3{margin:0 0 6px 0;font-size:14px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr; gap:10px}
+    .grid3{display:grid;grid-template-columns:1fr 1fr 1fr; gap:8px}
+    .badge{display:inline-flex;gap:6px;align-items:center;padding:4px 8px;border-radius:999px;border:1px solid var(--line);
+      background:rgba(255,255,255,.05);font-size:12px;color:var(--muted)}
+    .bar{height:10px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid rgba(255,255,255,.10)}
+    .bar > div{height:100%;background:linear-gradient(90deg,var(--good),var(--accent))}
+    .toast{
+      position:fixed; left:50%; bottom:14px; transform:translateX(-50%);
+      background:rgba(9,12,18,.86); border:1px solid var(--line);
+      padding:10px 12px; border-radius:14px; display:none; z-index:9;
+      max-width:min(520px, 92vw); color:var(--text); font-weight:800; font-size:13px;
+    }
+    input, textarea{
+      width:100%; box-sizing:border-box; border-radius:12px; border:1px solid var(--line);
+      background:rgba(0,0,0,.25); color:var(--text); padding:10px; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size:12px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+
+  <div class="app">
+    <div class="topbar">
+      <div class="pill">
+        <div class="kpi"><b id="money">£0</b><span>Cash</span></div>
+        <div class="kpi"><b id="net">£0</b><span>Net Worth</span></div>
+        <div class="kpi"><b id="rate">£0/s</b><span>Net income</span></div>
+        <div class="kpi"><b id="qol">50</b><span>QoL</span></div>
+      </div>
+      <button class="btn ghost" id="saveBtn">Save</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="overview">Overview</button>
+      <button class="tab" data-tab="business">Businesses</button>
+      <button class="tab" data-tab="lifestyle">Lifestyle</button>
+      <button class="tab" data-tab="finance">Finance</button>
+      <button class="tab" data-tab="portfolio">Portfolio</button>
+      <button class="tab" data-tab="reports">Reports</button>
+    </div>
+
+    <div class="content">
+      <div id="tab-overview" class="tabpane"></div>
+      <div id="tab-business" class="tabpane" style="display:none"></div>
+      <div id="tab-lifestyle" class="tabpane" style="display:none"></div>
+      <div id="tab-finance" class="tabpane" style="display:none"></div>
+      <div id="tab-portfolio" class="tabpane" style="display:none"></div>
+      <div id="tab-reports" class="tabpane" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  // ---------------------------
+  // iPhone Safari Stability Kit
+  // ---------------------------
+  const KEY = "pocket_tycoon_ios_safe_v4_portfolio";
+  const SAVE_VERSION = 4;
+
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const saneNumber=(x, fallback=0)=> (typeof x==="number" && isFinite(x)) ? x : fallback;
+  const now=()=>Date.now();
+
+  const fmt = new Intl.NumberFormat(undefined,{notation:"compact",compactDisplay:"short",maximumFractionDigits:2});
+  const moneyFmt = n => "£"+fmt.format(Math.max(0, saneNumber(n,0)));
+
+  // ---------- Background (cached gradients; no leaks) ----------
+  const bg = document.getElementById("bg");
+  const bctx = bg.getContext("2d", { alpha:true });
+  let W=innerWidth, H=innerHeight, DPR=1, stars=[];
+  let g1=null, g2=null;
+
+  function rebuildBackgroundCaches(){
+    g1=bctx.createRadialGradient(W*0.25,H*0.3,10,W*0.25,H*0.3,Math.max(W,H)*0.8);
+    g1.addColorStop(0,"rgba(47,124,255,0.10)"); g1.addColorStop(1,"rgba(0,0,0,0)");
+    g2=bctx.createRadialGradient(W*0.8,H*0.65,10,W*0.8,H*0.65,Math.max(W,H)*0.85);
+    g2.addColorStop(0,"rgba(106,92,255,0.08)"); g2.addColorStop(1,"rgba(0,0,0,0)");
+  }
+
+  function resize(){
+    DPR = Math.max(1, Math.min(2, devicePixelRatio||1));
+    W=innerWidth; H=innerHeight;
+    bg.width=(W*DPR)|0; bg.height=(H*DPR)|0;
+    bctx.setTransform(DPR,0,0,DPR,0,0);
+
+    stars=[];
+    for(let L=0; L<3; L++){
+      const count=Math.floor((W*H)/(L===0?12000:L===1?17000:26000))+50;
+      for(let i=0;i<count;i++){
+        stars.push({
+          x:Math.random()*W,y:Math.random()*H,
+          r:(L===0?1.6:L===1?1.2:0.9)*(0.6+Math.random()),
+          v:(L===0?22:L===1?12:7)*(0.7+Math.random()),
+          a:(L===0?0.5:L===1?0.35:0.25)*(0.6+Math.random())
+        });
+      }
+    }
+    rebuildBackgroundCaches();
+  }
+  addEventListener("resize", resize, {passive:true});
+  resize();
+
+  function drawBG(dt){
+    bctx.fillStyle="rgba(7,10,16,0.25)";
+    bctx.fillRect(0,0,W,H);
+    bctx.fillStyle=g1; bctx.fillRect(0,0,W,H);
+    bctx.fillStyle=g2; bctx.fillRect(0,0,W,H);
+
+    for(const s of stars){
+      s.y += s.v*dt;
+      if(s.y>H+10){s.y=-10; s.x=Math.random()*W;}
+      bctx.globalAlpha=s.a;
+      bctx.beginPath(); bctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+      bctx.fillStyle="white"; bctx.fill();
+    }
+    bctx.globalAlpha=1;
+  }
+
+  // ---------- Toast ----------
+  const toastEl=document.getElementById("toast");
+  let toastT=0;
+  function toast(msg){
+    toastEl.textContent=msg;
+    toastEl.style.display="block";
+    toastT=3.5;
+  }
+
+  // ---------------------------
+  // Catalogs
+  // ---------------------------
+
+  // Lifestyle items (now includes more vehicle choices and realistic upkeep)
+  const LIFESTYLE = [
+    // Gadgets
+    { id:"earbuds", type:"Gadget", name:"Wireless Earbuds", cost:129, upkeepPerSec:0, value:70, annualRate:-0.35, qol:+2, rep:+0, risk:+0 },
+    { id:"phone",   type:"Gadget", name:"Smartphone (mid/high)", cost:799, upkeepPerSec:0, value:450, annualRate:-0.30, qol:+4, rep:+1, risk:+0, maxOwned:2 },
+    { id:"laptop",  type:"Gadget", name:"Work Laptop", cost:1099, upkeepPerSec:0, value:650, annualRate:-0.28, qol:+5, rep:+2, risk:-1, maxOwned:2 },
+    { id:"tablet",  type:"Gadget", name:"Tablet", cost:499, upkeepPerSec:0, value:280, annualRate:-0.28, qol:+3, rep:+1, risk:+0 },
+
+    // Vehicles (treated as assets with depreciation + maintenance)
+    { id:"bike",    type:"Vehicle", name:"Bicycle", cost:350, upkeepPerSec:0.01, value:220, annualRate:-0.15, qol:+4, rep:+0, risk:-1, maxOwned:3 },
+    { id:"scooter", type:"Vehicle", name:"Scooter", cost:850, upkeepPerSec:0.02, value:520, annualRate:-0.18, qol:+5, rep:+1, risk:+0, maxOwned:2 },
+    { id:"usedcar", type:"Vehicle", name:"Used City Car", cost:6000, upkeepPerSec:0.14, value:4500, annualRate:-0.18, qol:+8, rep:+2, risk:+1, maxOwned:2 },
+    { id:"sedan",   type:"Vehicle", name:"Reliable Sedan", cost:20000, upkeepPerSec:0.30, value:16000, annualRate:-0.15, qol:+10, rep:+3, risk:+2, maxOwned:1 },
+    { id:"ev",      type:"Vehicle", name:"Electric Car", cost:35000, upkeepPerSec:0.28, value:28000, annualRate:-0.16, qol:+12, rep:+5, risk:+1, maxOwned:1 },
+    { id:"luxcar",  type:"Vehicle", name:"Luxury Car", cost:80000, upkeepPerSec:0.78, value:64000, annualRate:-0.20, qol:+16, rep:+6, risk:+5, maxOwned:1 },
+
+    // Homes (personal) – you can hold one at a time
+    { id:"rentroom", type:"Home", name:"Rent a Room (monthly)", cost:0, upkeepPerSec:0.35, value:0, annualRate:0, qol:+6, rep:+1, risk:-2, cancelable:true, maxOwned:1 },
+    { id:"homealarm",type:"Protection", name:"Home Security System", cost:450, upkeepPerSec:0.02, value:120, annualRate:-0.25, qol:+1, rep:+0, risk:-5, maxOwned:2 },
+
+    // Living
+    { id:"bed",   type:"Living", name:"Quality Bed & Mattress", cost:800, upkeepPerSec:0, value:250, annualRate:-0.35, qol:+6, rep:+0, risk:-1, maxOwned:2 },
+    { id:"desk",  type:"Living", name:"Desk + Chair Setup", cost:450, upkeepPerSec:0, value:150, annualRate:-0.35, qol:+4, rep:+1, risk:-1, maxOwned:2 },
+    { id:"sofa",  type:"Living", name:"Sofa", cost:900, upkeepPerSec:0, value:280, annualRate:-0.35, qol:+3, rep:+0, risk:+0, maxOwned:3 },
+
+    // Style
+    { id:"wardrobe", type:"Style", name:"Wardrobe Refresh", cost:300, upkeepPerSec:0, value:60, annualRate:-0.70, qol:+3, rep:+1, risk:+0 },
+    { id:"watch",    type:"Style", name:"Classic Watch", cost:650, upkeepPerSec:0, value:350, annualRate:-0.12, qol:+2, rep:+3, risk:+0, maxOwned:3 },
+
+    // Subscriptions (one of each)
+    { id:"gym",      type:"Subscription", name:"Gym Membership", cost:0, upkeepPerSec:0.06, value:0, annualRate:0, qol:+6, rep:+1, risk:-2, cancelable:true, maxOwned:1 },
+    { id:"stream",   type:"Subscription", name:"Streaming Sub", cost:0, upkeepPerSec:0.02, value:0, annualRate:0, qol:+2, rep:+0, risk:+0, cancelable:true, maxOwned:1 },
+    { id:"phoneplan",type:"Subscription", name:"Phone Plan", cost:0, upkeepPerSec:0.03, value:0, annualRate:0, qol:+1, rep:+0, risk:+0, cancelable:true, maxOwned:1 },
+
+    // Protection
+    { id:"insure",   type:"Protection", name:"Insurance (health + liability)", cost:0, upkeepPerSec:0.12, value:0, annualRate:0, qol:+2, rep:+1, risk:-8, cancelable:true, maxOwned:1 },
+
+    // Pets
+    { id:"cat", type:"Pets", name:"Adopt a Cat", cost:100, upkeepPerSec:0.05, value:0, annualRate:0, qol:+5, rep:+0, risk:-1, maxOwned:3 },
+    { id:"dog", type:"Pets", name:"Adopt a Dog", cost:200, upkeepPerSec:0.08, value:0, annualRate:0, qol:+6, rep:+1, risk:-1, maxOwned:2 },
+
+    // Experiences (repeatable consumables)
+    { id:"holiday", type:"Experience", name:"Weekend Trip", cost:300, upkeepPerSec:0, value:0, annualRate:0, qol:+6, rep:+0, risk:-1, consumable:true },
+    { id:"concert", type:"Experience", name:"Concert Night", cost:90, upkeepPerSec:0, value:0, annualRate:0, qol:+3, rep:+0, risk:+0, consumable:true },
+  ];
+
+  // Real Estate “market” (buy-to-let investments)
+  // Price changes with marketIndex; each property yields rent; maintenance applies; value appreciates with market + base rate.
+  const PROPERTIES = [
+    { id:"flat1", name:"Buy-to-let: 1-bed Flat", basePrice: 180000, baseAnnualApp: 0.025, grossYield: 0.050, maintPct: 0.012 },
+    { id:"house2",name:"Buy-to-let: 2-bed House", basePrice: 280000, baseAnnualApp: 0.030, grossYield: 0.048, maintPct: 0.013 },
+    { id:"house3",name:"Buy-to-let: 3-bed House", basePrice: 380000, baseAnnualApp: 0.030, grossYield: 0.045, maintPct: 0.014 },
+    { id:"hmo",   name:"Investment: Small HMO",   basePrice: 520000, baseAnnualApp: 0.032, grossYield: 0.070, maintPct: 0.020 },
+    { id:"shop",  name:"Commercial: Shop Unit",   basePrice: 650000, baseAnnualApp: 0.028, grossYield: 0.062, maintPct: 0.022 },
+  ];
+
+  // ---------------------------
+  // State
+  // ---------------------------
+  const DEFAULT_STATE = () => ({
+    v: SAVE_VERSION,
+    money: 250,
+    reputation: 50,
+    risk: 40,
+    qol: 50,
+    policy:"balanced",
+    lastSave: now(),
+    lastBackgroundAt: now(),
+    lastOfflineAwardAt: 0,
+    totalEarned: 0,
+    totalLost: 0,
+
+    // loans include mortgages too
+    // {id,type,principal,rateAPR,paymentPerSec,remaining,linkedAssetId?}
+    loans: [],
+
+    // lifestyle assets instances
+    assets: [],
+
+    // real estate
+    propertyMarketIndex: 1.00,
+    propertyOwned: [], // {instanceId, propId, name, currentValue, rentPerSec, maintPerSec, baseAnnualApp, purchasePrice, mortgageLoanId?}
+
+    businesses: [
+      { id:"lemon", name:"Street Snacks", unlocked:true,  level:1, base:12.0, expense:4.0,  unlockCost:0,     risk:10, rep:2 },
+      { id:"shop",  name:"Online Store",  unlocked:false, level:0, base:55.0, expense:22.0, unlockCost:1200,  risk:18, rep:4 },
+      { id:"fleet", name:"Delivery Fleet",unlocked:false, level:0, base:180.0,expense:85.0, unlockCost:9000,  risk:28, rep:6 },
+      { id:"studio",name:"Game Studio",   unlocked:false, level:0, base:520.0,expense:260.0,unlockCost:45000, risk:35, rep:10 },
+    ],
+    upgrades:{ analytics:0, security:0, pr:0, automation:0 }
+  });
+
+  let S = DEFAULT_STATE();
+  let loanId = 1;
+
+  function sanitiseState(){
+    S.money = saneNumber(S.money, 0);
+    S.totalEarned = saneNumber(S.totalEarned, 0);
+    S.totalLost = saneNumber(S.totalLost, 0);
+    S.reputation = clamp(saneNumber(S.reputation, 50), 0, 100);
+    S.qol = clamp(saneNumber(S.qol, 50), 0, 100);
+    S.risk = clamp(saneNumber(S.risk, 40), 0, 100);
+    S.lastSave = saneNumber(S.lastSave, now());
+    S.lastBackgroundAt = saneNumber(S.lastBackgroundAt, now());
+    S.lastOfflineAwardAt = saneNumber(S.lastOfflineAwardAt, 0);
+    S.policy = (S.policy==="conservative"||S.policy==="balanced"||S.policy==="aggressive") ? S.policy : "balanced";
+
+    S.assets = Array.isArray(S.assets) ? S.assets : [];
+    S.loans = Array.isArray(S.loans) ? S.loans : [];
+    S.businesses = Array.isArray(S.businesses) ? S.businesses : DEFAULT_STATE().businesses;
+    S.upgrades = S.upgrades && typeof S.upgrades==="object" ? S.upgrades : {analytics:0,security:0,pr:0,automation:0};
+
+    S.propertyMarketIndex = clamp(saneNumber(S.propertyMarketIndex,1), 0.70, 1.50);
+    S.propertyOwned = Array.isArray(S.propertyOwned) ? S.propertyOwned : [];
+
+    // clean assets
+    S.assets = S.assets.filter(a => a && typeof a==="object").map(a => ({
+      instanceId: a.instanceId || ("A"+Math.random().toString(16).slice(2)),
+      itemId: a.itemId || a.id || "unknown",
+      name: a.name || "Item",
+      type: a.type || "Other",
+      purchaseTime: saneNumber(a.purchaseTime, now()),
+      value: Math.max(0, saneNumber(a.value, 0)),
+      upkeepPerSec: Math.max(0, saneNumber(a.upkeepPerSec, 0)),
+      annualRate: saneNumber(a.annualRate, 0),
+      qol: saneNumber(a.qol, 0),
+      rep: saneNumber(a.rep, 0),
+      risk: saneNumber(a.risk, 0),
+      cancelable: !!a.cancelable
+    }));
+
+    // clean loans
+    S.loans = S.loans.filter(L => L && typeof L==="object").map(L => ({
+      id: L.id || ("L"+Math.random().toString(16).slice(2)),
+      type: (L.type==="mortgage") ? "mortgage" : "loan",
+      principal: Math.max(0, saneNumber(L.principal, 0)),
+      rateAPR: Math.max(0, saneNumber(L.rateAPR, 0)),
+      paymentPerSec: Math.max(0, saneNumber(L.paymentPerSec, 0)),
+      remaining: Math.max(0, saneNumber(L.remaining, 0)),
+      linkedAssetId: L.linkedAssetId || null
+    }));
+
+    // clean properties
+    S.propertyOwned = S.propertyOwned.filter(p => p && typeof p==="object").map(p => ({
+      instanceId: p.instanceId || ("P"+Math.random().toString(16).slice(2)),
+      propId: p.propId || "unknown",
+      name: p.name || "Property",
+      currentValue: Math.max(0, saneNumber(p.currentValue, 0)),
+      purchasePrice: Math.max(0, saneNumber(p.purchasePrice, 0)),
+      rentPerSec: Math.max(0, saneNumber(p.rentPerSec, 0)),
+      maintPerSec: Math.max(0, saneNumber(p.maintPerSec, 0)),
+      baseAnnualApp: saneNumber(p.baseAnnualApp, 0),
+      mortgageLoanId: p.mortgageLoanId || null
+    }));
+
+    // keep loanId moving forward a bit
+    const maxNum = S.loans.reduce((m,L)=> {
+      const n = parseInt(String(L.id).replace(/\D/g,"")) || 0;
+      return Math.max(m,n);
+    }, 0);
+    loanId = Math.max(loanId, maxNum+1);
+  }
+
+  function safeReset(reason){
+    localStorage.removeItem(KEY);
+    S = DEFAULT_STATE();
+    sanitiseState();
+    toast(reason || "Save reset.");
+    renderAll(true);
+  }
+
+  function load(){
+    try{
+      const raw = localStorage.getItem(KEY);
+      if(!raw) return;
+      const parsed = JSON.parse(raw);
+      if(!parsed || parsed.v !== SAVE_VERSION){
+        safeReset("Save updated/reset (new version).");
+        return;
+      }
+      S = parsed;
+    }catch(e){
+      safeReset("Save was corrupted and has been reset.");
+    }finally{
+      sanitiseState();
+    }
+  }
+
+  function save(showToast=true){
+    try{
+      sanitiseState();
+      S.lastSave = now();
+      localStorage.setItem(KEY, JSON.stringify(S));
+      if(showToast) toast("Saved.");
+    }catch(e){
+      toast("Save failed (storage issue). Consider Reset Save.");
+    }
+  }
+
+  load();
+
+  // ---------------------------
+  // Core economics
+  // ---------------------------
+  const YEAR = 365*24*3600;
+
+  function assetUpkeepPerSec(){
+    return S.assets.reduce((sum,a)=>sum + saneNumber(a.upkeepPerSec,0), 0);
+  }
+  function lifestyleEffects(){
+    let rep=0, risk=0, qol=0;
+    for(const a of S.assets){
+      rep += saneNumber(a.rep,0);
+      risk += saneNumber(a.risk,0);
+      qol += saneNumber(a.qol,0);
+    }
+    return { rep, risk, qol };
+  }
+
+  function propertyIncomePerSec(){
+    return S.propertyOwned.reduce((s,p)=>s + saneNumber(p.rentPerSec,0), 0);
+  }
+  function propertyMaintPerSec(){
+    return S.propertyOwned.reduce((s,p)=>s + saneNumber(p.maintPerSec,0), 0);
+  }
+
+  // market drift: small random walk; influenced by reputation a bit
+  function tickPropertyMarket(dt){
+    // dt seconds
+    const repBias = (S.reputation-50)/50;      // -1..+1
+    const baseDriftAnnual = 0.010 + 0.008*repBias; // ~1% +/- per year
+    const volAnnual = 0.060; // 6% annual vol (stylised)
+    // Convert annual to per-second small step
+    const drift = baseDriftAnnual * (dt/YEAR);
+    const noise = (volAnnual/Math.sqrt(YEAR)) * (Math.random()*2-1) * Math.sqrt(Math.max(0,dt));
+    S.propertyMarketIndex = clamp(S.propertyMarketIndex * (1 + drift + noise), 0.70, 1.50);
+  }
+
+  function updateLifestyleAssetValues(dt){
+    for(const a of S.assets){
+      const rate = saneNumber(a.annualRate,0);
+      if(!rate || a.value<=0) continue;
+      a.value = Math.max(0, a.value * (1 + (rate/YEAR)*dt));
+    }
+  }
+
+  function updatePropertyValues(dt){
+    // property value follows market index + base appreciation
+    for(const p of S.propertyOwned){
+      const marketApp = (S.propertyMarketIndex - 1) * 0.15; // dampened market linkage
+      const totalAnnual = saneNumber(p.baseAnnualApp,0) + marketApp;
+      p.currentValue = Math.max(0, p.currentValue * (1 + (totalAnnual/YEAR)*dt));
+    }
+  }
+
+  // Loans: interest + amortisation
+  function tickLoans(dt){
+    for(let i=S.loans.length-1;i>=0;i--){
+      const L=S.loans[i];
+      const remaining = saneNumber(L.remaining,0);
+      const pay = saneNumber(L.paymentPerSec,0)*dt;
+      if(remaining <= 0.01){
+        S.loans.splice(i,1);
+        continue;
+      }
+      // interest accrues
+      const interest = remaining * (saneNumber(L.rateAPR,0)/100) * (dt/YEAR);
+      // money pays the scheduled payment (cap so we do not underflow too far)
+      const payment = Math.max(0, pay);
+      S.money -= payment; S.totalLost += payment;
+
+      // principal reduction = payment - interest (not below 0)
+      const principalPaid = Math.max(0, payment - interest);
+      L.remaining = Math.max(0, remaining + interest - payment);
+
+      // If we didn't cover interest (payment < interest), remaining can grow; keep it bounded by sanity in sanitise.
+      if(L.remaining <= 0.01){
+        toast(`Loan repaid (${L.id}).`);
+        S.loans.splice(i,1);
+      }
+    }
+  }
+
+  function loanPayPerSec(){
+    return S.loans.reduce((s,L)=>s + saneNumber(L.paymentPerSec,0), 0);
+  }
+
+  function amortisedPaymentPerSec(principal, apr, years){
+    const r = (apr/100)/12;
+    const n = years*12;
+    if(r<=0) return (principal/n) / (30*24*3600) * 30; // fallback
+    const monthly = principal * (r*Math.pow(1+r,n)) / (Math.pow(1+r,n)-1);
+    return monthly / (30*24*3600);
+  }
+
+  function takeLoan(amount, apr){
+    amount = Math.max(0, amount);
+    const paymentPerSec = (amount*(apr/100))/YEAR + (amount/(10*60)); // quick gamey payoff
+    S.loans.push({ id:"L"+(loanId++), type:"loan", principal:amount, rateAPR:apr, paymentPerSec, remaining:amount, linkedAssetId:null });
+    S.money += amount; S.totalEarned += amount;
+    toast(`Loan: +${moneyFmt(amount)} (APR ${apr}%)`);
+  }
+
+  function takeMortgage(amount, apr, years, linkedAssetId){
+    amount = Math.max(0, amount);
+    const paymentPerSec = amortisedPaymentPerSec(amount, apr, years);
+    const id = "L"+(loanId++);
+    S.loans.push({ id, type:"mortgage", principal:amount, rateAPR:apr, paymentPerSec, remaining:amount, linkedAssetId });
+    return id;
+  }
+
+  function computeRates(){
+    // Policy multipliers
+    const policyIncomeMult = S.policy==="conservative" ? 0.90 : S.policy==="aggressive" ? 1.12 : 1.00;
+    const policyRiskDelta  = S.policy==="conservative" ? -6 : S.policy==="aggressive" ? +10 : 0;
+
+    const analyticsMult = 1 + 0.08*saneNumber(S.upgrades.analytics,0);
+    const automationExpenseMult = 1 - 0.05*saneNumber(S.upgrades.automation,0);
+
+    const life = lifestyleEffects();
+
+    const qolIncomeMult = 0.92 + (S.qol/100)*0.16;
+    const repIncomeMult = 0.85 + (S.reputation/100)*0.35;
+
+    let income=0, expenses=0, baseRisk=0;
+
+    // Business income/expense
+    for(const b of S.businesses){
+      if(!b.unlocked || b.level<=0) continue;
+      income += saneNumber(b.base,0) * saneNumber(b.level,0);
+      expenses += saneNumber(b.expense,0) * saneNumber(b.level,0);
+      baseRisk += saneNumber(b.risk,0) * Math.sqrt(Math.max(0, saneNumber(b.level,0)));
+    }
+
+    // Add property rent & maintenance
+    const propIncome = propertyIncomePerSec();
+    const propMaint = propertyMaintPerSec();
+    income += propIncome;
+    expenses += propMaint;
+
+    // Lifestyle upkeep (subscriptions, vehicle maintenance, etc.)
+    const lifeUpkeep = assetUpkeepPerSec();
+    expenses += lifeUpkeep;
+
+    // Apply policy & performance multipliers to income (not to property rent; but keep it simple and include it)
+    income *= policyIncomeMult * analyticsMult * repIncomeMult * qolIncomeMult;
+    expenses *= automationExpenseMult;
+
+    // Risk model
+    let risk = baseRisk/10 + 20;
+    risk += policyRiskDelta;
+    risk -= 7*saneNumber(S.upgrades.security,0);
+    risk += life.risk;
+    risk += (S.propertyOwned.length>0 ? 2 : 0); // leverage/tenant risk
+    risk -= (S.reputation-50)*0.08;
+    risk = clamp(saneNumber(risk,40), 0, 100);
+
+    const repDrift = (0.02*saneNumber(S.upgrades.pr,0)) + (S.qol>70 ? 0.01 : 0) - (risk>65 ? 0.015 : 0);
+
+    const netBeforeDebtPerSec = income - expenses;
+    const debtPay = loanPayPerSec();
+    const netAfterDebtPerSec = netBeforeDebtPerSec - debtPay;
+
+    return { incomePerSec:income, expensePerSec:expenses, debtPayPerSec:debtPay, netBeforeDebtPerSec, netAfterDebtPerSec, risk, repDrift };
+  }
+
+  function updateDerived(){
+    const r = computeRates();
+    S.risk = r.risk;
+
+    // approximate business “value”
+    const businessValue = S.businesses.reduce((sum,b)=>{
+      if(!b.unlocked||b.level<=0) return sum;
+      const approxNet = Math.max(0, (saneNumber(b.base,0) - saneNumber(b.expense,0)) * saneNumber(b.level,0));
+      return sum + approxNet * 60 * 25;
+    },0);
+
+    const lifestyleValue = S.assets.reduce((s,a)=>s+saneNumber(a.value,0),0);
+    const propertyValue = S.propertyOwned.reduce((s,p)=>s+saneNumber(p.currentValue,0),0);
+    const loanRemaining = S.loans.reduce((s,L)=>s+saneNumber(L.remaining,0),0);
+
+    const netWorth = S.money + businessValue + lifestyleValue + propertyValue - loanRemaining;
+    return { ...r, businessValue, lifestyleValue, propertyValue, loanRemaining, netWorth };
+  }
+
+  // Offline earnings (single award, capped, consistent with debt)
+  function awardOffline(dtSeconds){
+    dtSeconds = Math.max(0, Math.min(dtSeconds, 8*3600));
+    if(dtSeconds < 2) return;
+
+    const awardKey = Math.floor(now()/1000);
+    if(S.lastOfflineAwardAt === awardKey) return;
+    S.lastOfflineAwardAt = awardKey;
+
+    // simulate market + values for the offline interval (coarse but stable)
+    tickPropertyMarket(dtSeconds);
+    updateLifestyleAssetValues(dtSeconds);
+    updatePropertyValues(dtSeconds);
+
+    const r = computeRates();
+
+    // Apply cashflow before debt, then apply debt payments (same as foreground)
+    const gain = saneNumber(r.netBeforeDebtPerSec,0) * dtSeconds;
+    const cappedGain = clamp(gain, -5_000_000, 5_000_000);
+    S.money += cappedGain;
+    if(cappedGain>=0) S.totalEarned += cappedGain; else S.totalLost += -cappedGain;
+
+    // Apply loans for the same interval
+    tickLoans(dtSeconds);
+
+    toast(`Offline: ${moneyFmt(cappedGain)} (${Math.round(dtSeconds/60)} min)`);
+  }
+
+  function onHidden(){ S.lastBackgroundAt = now(); save(false); }
+  function onVisible(){
+    const dt = (now() - saneNumber(S.lastBackgroundAt, now()))/1000;
+    awardOffline(dt);
+    S.lastBackgroundAt = now();
+    sanitiseState();
+    renderAll(true);
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if(document.visibilityState === "hidden") onHidden();
+    else onVisible();
+  });
+  addEventListener("pagehide", onHidden);
+  addEventListener("pageshow", (e) => { if(e.persisted) onVisible(); });
+
+  // ---------------------------
+  // Business helpers
+  // ---------------------------
+  function upgradeCost(b){
+    const lvl = Math.max(0, saneNumber(b.level,0));
+    return Math.floor(120 + (lvl*lvl) * (b.unlockCost? (b.unlockCost/26) : 40));
+  }
+
+  // ---------------------------
+  // Real estate helpers
+  // ---------------------------
+  function currentPropertyPrice(prop){
+    return Math.floor(prop.basePrice * S.propertyMarketIndex);
+  }
+
+  function buyPropertyCash(propId){
+    const prop = PROPERTIES.find(p=>p.id===propId);
+    if(!prop) return;
+    const price = currentPropertyPrice(prop);
+    if(S.money < price) return toast("Not enough cash for this property.");
+
+    S.money -= price; S.totalLost += price;
+
+    const rentAnnual = price * prop.grossYield;
+    const maintAnnual = price * prop.maintPct;
+
+    const instanceId = "P"+Math.random().toString(16).slice(2);
+    S.propertyOwned.push({
+      instanceId,
+      propId: prop.id,
+      name: prop.name,
+      currentValue: price,
+      purchasePrice: price,
+      rentPerSec: rentAnnual / YEAR,
+      maintPerSec: maintAnnual / YEAR,
+      baseAnnualApp: prop.baseAnnualApp,
+      mortgageLoanId: null
+    });
+
+    toast(`Purchased: ${prop.name}`);
+    save(false); renderAll(true);
+  }
+
+  function buyPropertyMortgage(propId){
+    const prop = PROPERTIES.find(p=>p.id===propId);
+    if(!prop) return;
+    const price = currentPropertyPrice(prop);
+
+    // Mortgage terms: down payment and APR influenced by reputation/risk a bit
+    const downPct = 0.20;
+    const down = Math.floor(price * downPct);
+    if(S.money < down) return toast(`Need down payment: ${moneyFmt(down)}`);
+
+    // Basic underwriting: limit to 3 mortgages
+    const mortgages = S.loans.filter(L=>L.type==="mortgage").length;
+    if(mortgages >= 3) return toast("Mortgage limit reached (3).");
+
+    const years = 25;
+    const apr = clamp(4.6 + (S.risk-40)*0.05 - (S.reputation-50)*0.03, 3.2, 9.5);
+    const principal = price - down;
+
+    S.money -= down; S.totalLost += down;
+
+    const instanceId = "P"+Math.random().toString(16).slice(2);
+    const loanIdNew = takeMortgage(principal, apr, years, instanceId);
+
+    const rentAnnual = price * prop.grossYield;
+    const maintAnnual = price * prop.maintPct;
+
+    S.propertyOwned.push({
+      instanceId,
+      propId: prop.id,
+      name: prop.name,
+      currentValue: price,
+      purchasePrice: price,
+      rentPerSec: rentAnnual / YEAR,
+      maintPerSec: maintAnnual / YEAR,
+      baseAnnualApp: prop.baseAnnualApp,
+      mortgageLoanId: loanIdNew
+    });
+
+    toast(`Mortgaged: ${prop.name} (APR ${apr.toFixed(2)}%)`);
+    save(false); renderAll(true);
+  }
+
+  function sellProperty(instanceId){
+    const idx = S.propertyOwned.findIndex(p=>p.instanceId===instanceId);
+    if(idx<0) return;
+    const p = S.propertyOwned[idx];
+
+    // if mortgaged, require loan cleared at sale
+    let mortgage = null;
+    if(p.mortgageLoanId){
+      mortgage = S.loans.find(L=>L.id===p.mortgageLoanId);
+    }
+
+    const salePrice = Math.floor(saneNumber(p.currentValue,0) * 0.96); // selling costs
+    let net = salePrice;
+
+    if(mortgage){
+      net = salePrice - mortgage.remaining;
+      // remove mortgage loan
+      S.loans = S.loans.filter(L=>L.id!==mortgage.id);
+    }
+
+    if(net < 0){
+      toast("Sale would not clear the mortgage. Build equity first.");
+      return;
+    }
+
+    S.money += net; S.totalEarned += net;
+    S.propertyOwned.splice(idx,1);
+
+    toast(`Sold property: +${moneyFmt(net)}`);
+    save(false); renderAll(true);
+  }
+
+  // ---------------------------
+  // UI
+  // ---------------------------
+  const moneyEl=document.getElementById("money");
+  const netEl=document.getElementById("net");
+  const rateEl=document.getElementById("rate");
+  const qolEl=document.getElementById("qol");
+  document.getElementById("saveBtn").onclick=()=>save(true);
+
+  const tabOverview=document.getElementById("tab-overview");
+  const tabBusiness=document.getElementById("tab-business");
+  const tabLifestyle=document.getElementById("tab-lifestyle");
+  const tabFinance=document.getElementById("tab-finance");
+  const tabPortfolio=document.getElementById("tab-portfolio");
+  const tabReports=document.getElementById("tab-reports");
+
+  let currentTab="overview";
+  function setTab(name){
+    currentTab=name;
+    for(const pane of document.querySelectorAll(".tabpane")) pane.style.display="none";
+    for(const btn of document.querySelectorAll(".tab")) btn.classList.remove("active");
+    document.querySelector(`.tab[data-tab="${name}"]`).classList.add("active");
+    document.getElementById("tab-"+name).style.display="block";
+    renderAll(true);
+  }
+  document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+
+  function exportSave(){ sanitiseState(); return JSON.stringify(S); }
+  function importSave(text){
+    try{
+      const parsed = JSON.parse(text);
+      if(!parsed || parsed.v !== SAVE_VERSION) throw new Error("Wrong save version");
+      S = parsed;
+      sanitiseState();
+      save(false);
+      toast("Save imported.");
+      renderAll(true);
+    }catch(e){
+      toast("Import failed (invalid save).");
+    }
+  }
+
+  // ---------------------------
+  // Rendering
+  // ---------------------------
+  function renderOverview(){
+    const d=updateDerived();
+    const repBar=Math.round(S.reputation);
+    const riskBar=Math.round(S.risk);
+    const qolBar=Math.round(S.qol);
+
+    tabOverview.innerHTML=`
+      <div class="card">
+        <div class="row">
+          <div>
+            <div class="big">Overview</div>
+            <div class="muted">iPhone Safari pauses background tabs. This game awards capped offline progress safely when you return.</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn ghost" id="resetBtn">Reset Save</button>
+            <button class="btn ghost" id="fixBtn">Fix Save</button>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+        <div class="grid3">
+          <div class="item">
+            <h3>Reputation</h3>
+            <div class="bar"><div style="width:${repBar}%"></div></div>
+            <div class="muted" style="margin-top:6px">${repBar}/100</div>
+          </div>
+          <div class="item">
+            <h3>Risk</h3>
+            <div class="bar"><div style="width:${riskBar}%;background:linear-gradient(90deg,var(--danger), #ffb86b)"></div></div>
+            <div class="muted" style="margin-top:6px">${riskBar}/100</div>
+          </div>
+          <div class="item">
+            <h3>Quality of Life</h3>
+            <div class="bar"><div style="width:${qolBar}%;background:linear-gradient(90deg,var(--accent2), var(--good))"></div></div>
+            <div class="muted" style="margin-top:6px">${qolBar}/100</div>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+        <div class="item">
+          <div class="row">
+            <div>
+              <h3>Policy</h3>
+              <div class="muted">Conservative = safer. Aggressive = faster growth but higher risk.</div>
+            </div>
+            <div class="grid3" style="min-width:260px">
+              <button class="btn ${S.policy==="conservative"?"good":"ghost"}" id="polC">Conservative</button>
+              <button class="btn ${S.policy==="balanced"?"good":"ghost"}" id="polB">Balanced</button>
+              <button class="btn ${S.policy==="aggressive"?"good":"ghost"}" id="polA">Aggressive</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+        <div class="item">
+          <h3>Recovery tools</h3>
+          <div class="muted">If anything breaks: Export Save → Reset Save → Import Save.</div>
+          <div style="height:8px"></div>
+          <button class="btn ghost" id="exportBtn">Export Save</button>
+          <div style="height:8px"></div>
+          <textarea id="saveBox" rows="6" placeholder="Exported save will appear here. Paste save here to import."></textarea>
+          <div style="height:8px"></div>
+          <button class="btn" id="importBtn">Import Save</button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("polC").onclick=()=>{S.policy="conservative"; save(false); renderAll(true);};
+    document.getElementById("polB").onclick=()=>{S.policy="balanced"; save(false); renderAll(true);};
+    document.getElementById("polA").onclick=()=>{S.policy="aggressive"; save(false); renderAll(true);};
+
+    document.getElementById("resetBtn").onclick=()=>{
+      if(!confirm("Reset your save? This deletes everything.")) return;
+      safeReset("Save reset.");
+    };
+    document.getElementById("fixBtn").onclick=()=>{
+      sanitiseState(); save(false); toast("Save repaired."); renderAll(true);
+    };
+    document.getElementById("exportBtn").onclick=()=>{
+      document.getElementById("saveBox").value = exportSave();
+      toast("Save exported (copy it).");
+    };
+    document.getElementById("importBtn").onclick=()=>{
+      importSave(document.getElementById("saveBox").value.trim());
+    };
+  }
+
+  function renderBusinesses(){
+    const list = S.businesses.map(b=>{
+      const locked=!b.unlocked;
+      const lvl=Math.max(0, saneNumber(b.level,0));
+      const canUnlock=locked && S.money>=b.unlockCost;
+      const cost = upgradeCost(b);
+      const canUpgrade=b.unlocked && S.money>=cost;
+      const net = b.unlocked ? (saneNumber(b.base,0)-saneNumber(b.expense,0))*lvl : 0;
+      return `
+        <div class="item">
+          <div class="row">
+            <div>
+              <h3>${b.name} ${b.unlocked?`<span class="badge">Level ${lvl}</span>`:`<span class="badge">Locked</span>`}</h3>
+              <div class="muted">${b.unlocked
+                ? `Income: ${moneyFmt(b.base)}/s • Expense: ${moneyFmt(b.expense)}/s • Net: ${moneyFmt(net)}/s`
+                : `Unlock cost: ${moneyFmt(b.unlockCost)}`
+              }</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+              ${locked
+                ? `<button class="btn ${canUnlock?"":"ghost"}" ${canUnlock?"":"disabled"} data-unlock="${b.id}">Unlock</button>`
+                : `<button class="btn ${canUpgrade?"":"ghost"}" ${canUpgrade?"":"disabled"} data-up="${b.id}">Upgrade (${moneyFmt(cost)})</button>`
+              }
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    tabBusiness.innerHTML=`
+      <div class="card">
+        <div class="big">Businesses</div>
+        <div class="muted">Unlock and upgrade income streams (scaled so real estate and vehicles are reachable).</div>
+        <div style="height:10px"></div>
+        <div class="list">${list}</div>
+      </div>
+    `;
+
+    tabBusiness.querySelectorAll("[data-unlock]").forEach(btn=>{
+      btn.onclick=()=>{
+        const id=btn.getAttribute("data-unlock");
+        const b=S.businesses.find(x=>x.id===id);
+        if(!b || b.unlocked || S.money<b.unlockCost) return;
+        S.money-=b.unlockCost; S.totalLost+=b.unlockCost;
+        b.unlocked=true; b.level=1;
+        S.reputation=clamp(S.reputation+2,0,100);
+        toast(`Unlocked: ${b.name}`);
+        save(false); renderAll(true);
+      };
+    });
+
+    tabBusiness.querySelectorAll("[data-up]").forEach(btn=>{
+      btn.onclick=()=>{
+        const id=btn.getAttribute("data-up");
+        const b=S.businesses.find(x=>x.id===id);
+        const cost=upgradeCost(b);
+        if(!b || !b.unlocked || S.money<cost) return;
+        S.money-=cost; S.totalLost+=cost;
+        b.level = Math.max(0, saneNumber(b.level,0)) + 1;
+        toast(`${b.name} upgraded to Level ${b.level}`);
+        save(false); renderAll(true);
+      };
+    });
+  }
+
+  function renderLifestyle(){
+    const lifestyleValue = S.assets.reduce((s,a)=>s+saneNumber(a.value,0),0);
+    const upkeep = assetUpkeepPerSec();
+
+    const ownedHtml = S.assets.length===0
+      ? `<div class="muted">No lifestyle items yet. Buy items below.</div>`
+      : S.assets.map(a=>{
+          const resale = a.value>0 ? Math.floor(a.value * 0.70) : 0;
+          const canSell = resale>0;
+          const canCancel = !!a.cancelable && (a.upkeepPerSec||0) > 0;
+          return `
+            <div class="item">
+              <div class="row">
+                <div>
+                  <h3>${a.name} <span class="badge">${a.type}</span></h3>
+                  <div class="muted">
+                    ${a.value>0?`Current value: <b>${moneyFmt(a.value)}</b> • `:""}
+                    ${a.upkeepPerSec>0?`Upkeep: <b>${moneyFmt(a.upkeepPerSec)}/s</b>`:"No upkeep"}
+                  </div>
+                  <div class="muted">Effects: QoL ${a.qol>=0?`+${a.qol.toFixed(2)}`:a.qol.toFixed(2)} • Rep ${a.rep>=0?`+${a.rep.toFixed(2)}`:a.rep.toFixed(2)} • Risk ${a.risk>=0?`+${a.risk.toFixed(2)}`:a.risk.toFixed(2)}</div>
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end">
+                  ${canSell?`<button class="btn ghost" data-sell="${a.instanceId}">Sell (${moneyFmt(resale)})</button>`:""}
+                  ${canCancel?`<button class="btn ghost" data-cancel="${a.instanceId}">Cancel</button>`:""}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+    const groups = {};
+    for(const it of LIFESTYLE) (groups[it.type] ||= []).push(it);
+
+    const sections = Object.keys(groups).map(type=>{
+      const rows = groups[type].map(it=>{
+        const ownedCount = S.assets.filter(a => a.itemId === it.id).length;
+        const cap = it.maxOwned ?? Infinity;
+        const canBuy = (ownedCount < cap) && (S.money >= it.cost);
+
+        const upkeepTxt = it.upkeepPerSec>0 ? ` • Upkeep: <b>${moneyFmt(it.upkeepPerSec)}/s</b>` : ``;
+        const valueTxt = it.value>0 ? ` • Value: <b>${moneyFmt(it.value)}</b>` : ``;
+
+        const tag = it.consumable
+          ? `<span class="badge">Repeatable</span>`
+          : `<span class="badge">Owned ${ownedCount}${isFinite(cap)?`/${cap}`:""}</span>`;
+
+        return `
+          <div class="item">
+            <div class="row">
+              <div>
+                <h3>${it.name} ${tag}</h3>
+                <div class="muted">Cost: <b>${moneyFmt(it.cost)}</b>${upkeepTxt}${valueTxt}</div>
+                <div class="muted">Effects: QoL ${it.qol>=0?`+${it.qol}`:it.qol} • Rep ${it.rep>=0?`+${it.rep}`:it.rep} • Risk ${it.risk>=0?`+${it.risk}`:it.risk}</div>
+                ${(!it.consumable && ownedCount>0) ? `<div class="muted">Diminishing returns apply on repeats.</div>` : ``}
+              </div>
+              <div>
+                <button class="btn ${canBuy?"":"ghost"}" ${canBuy?"":"disabled"} data-buy="${it.id}">Buy</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      return `<div class="card"><div class="big">${type}</div><div class="list">${rows}</div></div>`;
+    }).join("");
+
+    tabLifestyle.innerHTML=`
+      <div class="card">
+        <div class="row">
+          <div>
+            <div class="big">Lifestyle</div>
+            <div class="muted">Vehicles depreciate and cost upkeep. Most items can be bought multiple times (some capped).</div>
+          </div>
+          <div style="text-align:right">
+            <div class="muted">Lifestyle assets value</div>
+            <div style="font-weight:900">${moneyFmt(lifestyleValue)}</div>
+            <div class="muted">Upkeep</div>
+            <div style="font-weight:900">${moneyFmt(upkeep)}/s</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="big">Owned</div>
+        <div class="list">${ownedHtml}</div>
+      </div>
+
+      ${sections}
+    `;
+
+    // Buy
+    tabLifestyle.querySelectorAll("[data-buy]").forEach(btn=>{
+      btn.onclick=()=>{
+        const id=btn.getAttribute("data-buy");
+        const it=LIFESTYLE.find(x=>x.id===id);
+        if(!it) return;
+
+        const ownedCount = S.assets.filter(a => a.itemId === it.id).length;
+        const cap = it.maxOwned ?? Infinity;
+        if(ownedCount >= cap) return toast("You can’t own more of this item.");
+        if(S.money < it.cost) return toast("Not enough cash.");
+
+        S.money -= it.cost; S.totalLost += it.cost;
+
+        if(it.consumable){
+          S.qol = clamp(S.qol + saneNumber(it.qol,0), 0, 100);
+          S.reputation = clamp(S.reputation + saneNumber(it.rep,0), 0, 100);
+          S.risk = clamp(S.risk + saneNumber(it.risk,0), 0, 100);
+          toast(`Purchased: ${it.name}`);
+          save(false); renderAll(true);
+          return;
+        }
+
+        const mult = Math.pow(0.65, ownedCount);
+
+        const effQol  = saneNumber(it.qol,0) * mult;
+        const effRep  = saneNumber(it.rep,0) * mult;
+        const effRisk = saneNumber(it.risk,0) * mult;
+
+        const instanceId = "A"+Math.random().toString(16).slice(2);
+
+        S.assets.push({
+          instanceId,
+          itemId: it.id,
+          name: it.name,
+          type: it.type,
+          purchaseTime: now(),
+          value: saneNumber(it.value,0),
+          upkeepPerSec: Math.max(0, saneNumber(it.upkeepPerSec,0)),
+          annualRate: saneNumber(it.annualRate,0),
+          qol: effQol, rep: effRep, risk: effRisk,
+          cancelable: !!it.cancelable
+        });
+
+        S.qol = clamp(S.qol + effQol, 0, 100);
+        S.reputation = clamp(S.reputation + effRep, 0, 100);
+        S.risk = clamp(S.risk + effRisk, 0, 100);
+
+        toast(`Purchased: ${it.name}`);
+        save(false); renderAll(true);
+      };
+    });
+
+    // Sell
+    tabLifestyle.querySelectorAll("[data-sell]").forEach(btn=>{
+      btn.onclick=()=>{
+        const id=btn.getAttribute("data-sell");
+        const idx=S.assets.findIndex(a=>a.instanceId===id);
+        if(idx<0) return;
+        const a=S.assets[idx];
+        const payout = Math.floor(saneNumber(a.value,0) * 0.70);
+        if(payout <= 0) return;
+
+        S.money += payout; S.totalEarned += payout;
+
+        S.qol = clamp(S.qol - saneNumber(a.qol,0), 0, 100);
+        S.reputation = clamp(S.reputation - saneNumber(a.rep,0), 0, 100);
+        S.risk = clamp(S.risk - saneNumber(a.risk,0), 0, 100);
+
+        S.assets.splice(idx,1);
+        toast(`Sold: ${a.name} (+${moneyFmt(payout)})`);
+        save(false); renderAll(true);
+      };
+    });
+
+    // Cancel
+    tabLifestyle.querySelectorAll("[data-cancel]").forEach(btn=>{
+      btn.onclick=()=>{
+        const id=btn.getAttribute("data-cancel");
+        const idx=S.assets.findIndex(a=>a.instanceId===id);
+        if(idx<0) return;
+        const a=S.assets[idx];
+
+        S.qol = clamp(S.qol - saneNumber(a.qol,0), 0, 100);
+        S.reputation = clamp(S.reputation - saneNumber(a.rep,0), 0, 100);
+        S.risk = clamp(S.risk - saneNumber(a.risk,0), 0, 100);
+
+        S.assets.splice(idx,1);
+        toast(`Canceled: ${a.name}`);
+        save(false); renderAll(true);
+      };
+    });
+  }
+
+  function renderFinance(){
+    const loanHtml = S.loans.length===0 ? `<div class="muted">No active loans.</div>` : S.loans.map(L=>`
+      <div class="item">
+        <h3>${L.type==="mortgage" ? "Mortgage" : "Loan"} ${L.id}</h3>
+        <div class="muted">APR ${L.rateAPR.toFixed(2)}% • Remaining ${moneyFmt(L.remaining)} • Payment ${moneyFmt(L.paymentPerSec)}/s</div>
+      </div>`).join("");
+
+    tabFinance.innerHTML=`
+      <div class="card">
+        <div class="big">Finance</div>
+        <div class="muted">Loans accelerate growth. Mortgages are created from Portfolio → Real Estate.</div>
+        <div style="height:10px"></div>
+        <div class="grid2">
+          <div class="item">
+            <h3>Small loan</h3>
+            <div class="muted">Good early acceleration.</div>
+            <div style="height:8px"></div>
+            <button class="btn" id="loan1">Borrow ${moneyFmt(5000)} (APR 16%)</button>
+          </div>
+          <div class="item">
+            <h3>Growth loan</h3>
+            <div class="muted">Bigger jump; higher pressure.</div>
+            <div style="height:8px"></div>
+            <button class="btn danger" id="loan2">Borrow ${moneyFmt(25000)} (APR 26%)</button>
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="item">
+          <h3>Active debt</h3>
+          ${loanHtml}
+        </div>
+      </div>
+    `;
+
+    document.getElementById("loan1").onclick=()=>{
+      if(S.loans.filter(L=>L.type==="loan").length>=3) return toast("Too many active loans.");
+      takeLoan(5000,16); save(false); renderAll(true);
+    };
+    document.getElementById("loan2").onclick=()=>{
+      if(S.loans.filter(L=>L.type==="loan").length>=3) return toast("Too many active loans.");
+      S.risk = clamp(S.risk + 6, 0, 100);
+      takeLoan(25000,26); save(false); renderAll(true);
+    };
+  }
+
+  function renderPortfolio(){
+    const d = updateDerived();
+    const monthly = (x)=> x * 30*24*3600;
+
+    const cash = Math.max(0, S.money);
+    const businessV = Math.max(0, d.businessValue);
+    const lifeV = Math.max(0, d.lifestyleValue);
+    const propV = Math.max(0, d.propertyValue);
+    const debt = Math.max(0, d.loanRemaining);
+
+    const totalAssets = cash + businessV + lifeV + propV;
+    const safePct = (v)=> totalAssets<=0 ? 0 : Math.round((v/totalAssets)*100);
+
+    const market = S.propertyMarketIndex;
+    const propListings = PROPERTIES.map(p=>{
+      const price = currentPropertyPrice(p);
+      const canCash = S.money >= price;
+      const down = Math.floor(price*0.20);
+      const canMort = S.money >= down;
+
+      const rentAnnual = price * p.grossYield;
+      const maintAnnual = price * p.maintPct;
+      const netAnnualBeforeDebt = rentAnnual - maintAnnual;
+
+      return `
+        <div class="item">
+          <div class="row">
+            <div>
+              <h3>${p.name} <span class="badge">Market</span></h3>
+              <div class="muted">Price: <b>${moneyFmt(price)}</b> • Est. net rent (pre-debt): <b>${moneyFmt(netAnnualBeforeDebt/12)}/mo</b></div>
+              <div class="muted">Gross yield ${Math.round(p.grossYield*1000)/10}% • Maint ~${Math.round(p.maintPct*1000)/10}% • Base app ~${Math.round(p.baseAnnualApp*1000)/10}%</div>
+              <div class="muted">Down payment (20%): <b>${moneyFmt(down)}</b></div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+              <button class="btn ${canCash?"":"ghost"}" ${canCash?"":"disabled"} data-buycash="${p.id}">Buy Cash</button>
+              <button class="btn ${canMort?"":"ghost"}" ${canMort?"":"disabled"} data-buymort="${p.id}">Mortgage</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    const ownedProps = (S.propertyOwned.length===0)
+      ? `<div class="muted">No investment properties yet.</div>`
+      : S.propertyOwned.map(p=>{
+          const mort = p.mortgageLoanId ? S.loans.find(L=>L.id===p.mortgageLoanId) : null;
+          const equity = Math.max(0, saneNumber(p.currentValue,0) - (mort ? mort.remaining : 0));
+          const saleNetApprox = Math.floor(saneNumber(p.currentValue,0)*0.96 - (mort?mort.remaining:0));
+          const canSell = saleNetApprox >= 0;
+          return `
+            <div class="item">
+              <div class="row">
+                <div>
+                  <h3>${p.name} <span class="badge">Owned</span></h3>
+                  <div class="muted">Value: <b>${moneyFmt(p.currentValue)}</b> • Equity: <b>${moneyFmt(equity)}</b></div>
+                  <div class="muted">Rent: <b>${moneyFmt(p.rentPerSec)}/s</b> • Maint: <b>${moneyFmt(p.maintPerSec)}/s</b></div>
+                  ${mort ? `<div class="muted">Mortgage ${mort.id}: Remaining <b>${moneyFmt(mort.remaining)}</b> • Pay <b>${moneyFmt(mort.paymentPerSec)}/s</b></div>` : `<div class="muted">Owned outright (no mortgage).</div>`}
+                </div>
+                <div>
+                  <button class="btn ${canSell?"":"ghost"}" ${canSell?"":"disabled"} data-sellprop="${p.instanceId}">Sell (est. ${moneyFmt(Math.max(0,saleNetApprox))})</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+    tabPortfolio.innerHTML=`
+      <div class="card">
+        <div class="big">Portfolio</div>
+        <div class="muted">Asset allocation, cashflow, and real estate investment management.</div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div>
+            <h3>Asset allocation</h3>
+            <div class="muted">Cash ${safePct(cash)}% • Business ${safePct(businessV)}% • Lifestyle ${safePct(lifeV)}% • Real estate ${safePct(propV)}%</div>
+            <div style="height:8px"></div>
+            <div class="muted">Cash</div>
+            <div class="bar"><div style="width:${safePct(cash)}%"></div></div>
+            <div style="height:6px"></div>
+            <div class="muted">Business</div>
+            <div class="bar"><div style="width:${safePct(businessV)}%;background:linear-gradient(90deg,var(--accent2),var(--accent))"></div></div>
+            <div style="height:6px"></div>
+            <div class="muted">Lifestyle</div>
+            <div class="bar"><div style="width:${safePct(lifeV)}%;background:linear-gradient(90deg,#ffb86b,var(--good))"></div></div>
+            <div style="height:6px"></div>
+            <div class="muted">Real estate</div>
+            <div class="bar"><div style="width:${safePct(propV)}%;background:linear-gradient(90deg,var(--good),#7ee787)"></div></div>
+          </div>
+          <div>
+            <h3>Cashflow (approx.)</h3>
+            <div class="muted">Income: <b>${moneyFmt(d.incomePerSec)}/s</b></div>
+            <div class="muted">Expenses: <b>${moneyFmt(d.expensePerSec)}/s</b></div>
+            <div class="muted">Debt pay: <b>${moneyFmt(d.debtPayPerSec)}/s</b></div>
+            <div class="muted">Net: <b>${moneyFmt(d.netAfterDebtPerSec)}/s</b></div>
+            <div style="height:8px"></div>
+            <div class="muted">Net per month: <b>${moneyFmt(monthly(d.netAfterDebtPerSec))}</b></div>
+            <div class="muted">Net worth: <b>${moneyFmt(d.netWorth)}</b></div>
+            <div class="muted">Debt outstanding: <b>${moneyFmt(debt)}</b></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div>
+            <h3>Real estate market</h3>
+            <div class="muted">Market Index: <b>${market.toFixed(2)}</b> (moves slowly over time)</div>
+          </div>
+          <div class="muted">Tip: Mortgage needs 20% down; rent offsets upkeep; debt reduces cashflow.</div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="list">${propListings}</div>
+      </div>
+
+      <div class="card">
+        <h3>Owned properties</h3>
+        <div class="list">${ownedProps}</div>
+      </div>
+    `;
+
+    tabPortfolio.querySelectorAll("[data-buycash]").forEach(btn=>{
+      btn.onclick=()=>buyPropertyCash(btn.getAttribute("data-buycash"));
+    });
+    tabPortfolio.querySelectorAll("[data-buymort]").forEach(btn=>{
+      btn.onclick=()=>buyPropertyMortgage(btn.getAttribute("data-buymort"));
+    });
+    tabPortfolio.querySelectorAll("[data-sellprop]").forEach(btn=>{
+      btn.onclick=()=>sellProperty(btn.getAttribute("data-sellprop"));
+    });
+  }
+
+  function renderReports(){
+    const d=updateDerived();
+    const propIncome = propertyIncomePerSec();
+    const propMaint = propertyMaintPerSec();
+    const lifeUpkeep = assetUpkeepPerSec();
+
+    tabReports.innerHTML=`
+      <div class="card">
+        <div class="big">Reports</div>
+        <div class="muted">Wealth breakdown and cashflow drivers (including real estate).</div>
+        <div style="height:10px"></div>
+        <div class="grid2">
+          <div class="item">
+            <h3>Totals</h3>
+            <div class="muted">Earned: <b>${moneyFmt(S.totalEarned)}</b></div>
+            <div class="muted">Lost: <b>${moneyFmt(S.totalLost)}</b></div>
+          </div>
+          <div class="item">
+            <h3>Net worth components</h3>
+            <div class="muted">Cash: <b>${moneyFmt(S.money)}</b></div>
+            <div class="muted">Business value: <b>${moneyFmt(d.businessValue)}</b></div>
+            <div class="muted">Lifestyle value: <b>${moneyFmt(d.lifestyleValue)}</b></div>
+            <div class="muted">Real estate value: <b>${moneyFmt(d.propertyValue)}</b></div>
+            <div class="muted">Debt outstanding: <b>${moneyFmt(d.loanRemaining)}</b></div>
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="item">
+          <h3>Cashflow decomposition</h3>
+          <div class="muted">Property rent: <b>${moneyFmt(propIncome)}/s</b></div>
+          <div class="muted">Property maintenance: <b>${moneyFmt(propMaint)}/s</b></div>
+          <div class="muted">Lifestyle upkeep: <b>${moneyFmt(lifeUpkeep)}/s</b></div>
+          <div class="muted">Debt payments: <b>${moneyFmt(d.debtPayPerSec)}/s</b></div>
+          <div class="muted">Net (after debt): <b>${moneyFmt(d.netAfterDebtPerSec)}/s</b></div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAll(force){
+    const d=updateDerived();
+    moneyEl.textContent = moneyFmt(S.money);
+    netEl.textContent = moneyFmt(d.netWorth);
+    rateEl.textContent = `${moneyFmt(d.netAfterDebtPerSec)}/s`;
+    qolEl.textContent = String(Math.round(S.qol));
+
+    if(currentTab==="overview") renderOverview();
+    else if(currentTab==="business") renderBusinesses();
+    else if(currentTab==="lifestyle") renderLifestyle();
+    else if(currentTab==="finance") renderFinance();
+    else if(currentTab==="portfolio") renderPortfolio();
+    else if(currentTab==="reports") renderReports();
+  }
+
+  // start
+  renderAll(true);
+
+  // ---------------------------
+  // Main loop (stable)
+  // ---------------------------
+  let last=performance.now();
+  function loop(t){
+    const dt=Math.min(0.05,(t-last)/1000);
+    last=t;
+
+    drawBG(dt);
+
+    // markets & values
+    tickPropertyMarket(dt);
+    updateLifestyleAssetValues(dt);
+    updatePropertyValues(dt);
+
+    // cashflow BEFORE debt
+    const r = computeRates();
+    const delta = saneNumber(r.netBeforeDebtPerSec,0) * dt;
+    S.money += delta;
+    if(delta>=0) S.totalEarned += delta; else S.totalLost += -delta;
+
+    // debt service
+    tickLoans(dt);
+
+    // reputation drift
+    S.reputation = clamp(S.reputation + saneNumber(r.repDrift,0)*dt*60, 0, 100);
+
+    // QoL drift: if upkeep+maintenance too heavy vs income and low cash → stress
+    const upkeepStress = (assetUpkeepPerSec() + propertyMaintPerSec());
+    if(upkeepStress > saneNumber(r.incomePerSec,0)*0.45 && S.money < 500){
+      S.qol = clamp(S.qol - 0.8*dt, 0, 100);
+    } else {
+      S.qol = clamp(S.qol + 0.08*dt, 0, 100);
+    }
+
+    // autosave every 20s
+    if(now()-S.lastSave > 20000) save(false);
+
+    // toast fade
+    if(toastT>0){ toastT-=dt; if(toastT<=0) toastEl.style.display="none"; }
+
+    // update KPIs only
+    const d=updateDerived();
+    moneyEl.textContent = moneyFmt(S.money);
+    netEl.textContent = moneyFmt(d.netWorth);
+    rateEl.textContent = `${moneyFmt(d.netAfterDebtPerSec)}/s`;
+    qolEl.textContent = String(Math.round(S.qol));
+
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
